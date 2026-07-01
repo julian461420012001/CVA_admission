@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>身體診察病歷產生器</title>
+<style>
+  :root{
+    --ink:#1a2530; --ink-soft:#4a5a6b; --line:#d9e0e6; --line-soft:#eaeef1;
+    --paper:#fff; --wash:#f4f7f9; --blue:#2f6d8f; --blue-deep:#245570;
+    --blue-wash:#e6f0f4; --amber:#b5751f; --amber-wash:#faf1e2; --off:#eef2f4;
+    --sel:#2f6d8f; --radius:7px;
+    --mono:ui-monospace,"SFMono-Regular","Menlo","Consolas","Roboto Mono",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);color:var(--ink);background:var(--wash);font-size:14px;line-height:1.5}
+  .app{display:grid;grid-template-columns:1fr 400px;min-height:100vh}
+  .form{padding:22px 26px 120px;max-width:880px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:10px;border-bottom:2px solid var(--ink);padding-bottom:12px}
+  header.top h1{font-size:19px;font-weight:700;margin:0}
+  header.top h1 .en{font-weight:500;color:var(--ink-soft);font-size:14px}
+  header.top .sub{font-size:12.5px;color:var(--ink-soft)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 20px}
+  .toolbar button{font-family:var(--sans);font-size:12.5px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);padding:6px 12px;border-radius:6px;cursor:pointer}
+  .toolbar button:hover{border-color:var(--blue);color:var(--blue)}
+  .block{border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);margin-bottom:14px;overflow:hidden}
+  .block.off{background:var(--off)}
+  .block.off .block-head .name,.block.off .block-head .en{opacity:.55}
+  .block-head{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;user-select:none}
+  .block-head .name{font-weight:700;font-size:14.5px;flex:1}
+  .block-head .name .en{color:var(--ink-soft);font-weight:500;font-size:12.5px;margin-left:7px}
+  .na{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);border:1px solid var(--line);background:var(--paper);padding:4px 10px 4px 8px;border-radius:20px;cursor:pointer;white-space:nowrap}
+  .na .dot{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--ink-soft);display:inline-block;position:relative;flex:none}
+  .block.off .na{background:var(--ink-soft);border-color:var(--ink-soft);color:#fff}
+  .block.off .na .dot{border-color:#fff}
+  .block.off .na .dot::after{content:"";position:absolute;inset:2px;border-radius:50%;background:#fff}
+  .chev{color:var(--ink-soft);font-size:11px;flex:none;transition:transform .15s}
+  .block.collapsed .chev{transform:rotate(-90deg)}
+  .block-body{padding:2px 14px 15px}
+  .block.collapsed .block-body{display:none}
+  .row{padding:8px 0;border-top:1px solid var(--line-soft)}
+  .row:first-child{border-top:none}
+  .row-label{font-size:13px;margin-bottom:5px;font-weight:600}
+  .row-label .hint{font-weight:400;color:var(--ink-soft);font-size:12px}
+  .opts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .pill{font-family:var(--sans);font-size:12.5px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);padding:4px 11px;border-radius:20px;cursor:pointer;transition:.1s;line-height:1.4}
+  .pill:hover{border-color:var(--blue)}
+  .pill.on{background:var(--sel);border-color:var(--sel);color:#fff;font-weight:600}
+  .secover{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 0 4px;margin-bottom:2px;border-bottom:1px dashed var(--line)}
+  .secbtn{font-family:var(--sans);font-size:12px;border:1px solid var(--amber);background:var(--amber-wash);color:var(--amber);padding:4px 11px;border-radius:20px;cursor:pointer;line-height:1.4}
+  .secbtn:hover{filter:brightness(.97)}
+  .secbtn.on{background:var(--amber);border-color:var(--amber);color:#fff;font-weight:600}
+  .secover-in{flex-basis:100%;margin-top:4px;display:none}
+  .secover-in.open{display:block}
+  .secover-in input{width:100%;max-width:460px;font-family:var(--mono);font-size:12px;border:1px solid var(--amber);border-radius:5px;padding:5px 8px;color:var(--ink);background:#fffdf9}
+  .secover-in input:focus{outline:none;box-shadow:0 0 0 2px var(--amber-wash)}
+  .secover-fields.secover-dim{opacity:.4;pointer-events:none;filter:grayscale(.3)}
+  .xbtn{flex:none;font-family:var(--sans);font-size:13px;line-height:1;width:26px;height:26px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;margin-left:8px}
+  .xbtn:hover{border-color:#c0392b;color:#c0392b}
+  .xbtn.on{background:#c0392b;border-color:#c0392b;color:#fff}
+  .block.excluded{background:var(--off);opacity:.7}
+  .block.excluded .block-head .name,.block.excluded .block-head .en{opacity:.5;text-decoration:line-through}
+  .pill.overridden{opacity:.32;text-decoration:line-through;pointer-events:auto}
+  .pill.overridden.on{background:var(--paper);border-color:var(--line);color:var(--ink-soft);font-weight:400}
+  .pill.neg.on{background:var(--ink-soft);border-color:var(--ink-soft)}
+  input.txt{font-family:var(--mono);font-size:12.5px;border:1px solid var(--line);border-radius:5px;padding:4px 7px;color:var(--ink);background:var(--paper)}
+  input.txt:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-wash)}
+  .w-xs{width:54px}.w-s{width:80px}.w-m{width:160px}.w-l{width:100%;max-width:440px}
+  .inline-lbl{font-family:var(--mono);font-size:12px;color:var(--ink-soft)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:2px 22px}
+  @media(max-width:640px){.grid2{grid-template-columns:1fr}}
+  .info{margin-top:6px}
+  .info summary{font-size:11.5px;color:var(--blue);cursor:pointer;list-style:none;display:inline-flex;align-items:center;gap:4px;padding:2px 0}
+  .info summary::-webkit-details-marker{display:none}
+  .info summary::before{content:"ⓘ";font-size:12px}
+  .info[open] summary{color:var(--ink-soft)}
+  .info .info-body{font-size:11.5px;color:var(--ink-soft);background:var(--amber-wash);border-left:3px solid var(--amber);padding:8px 11px;border-radius:0 5px 5px 0;margin-top:6px;white-space:pre-wrap;line-height:1.55}
+  .free-note{margin-top:10px}
+  .free-note .cap{font-size:11px;color:var(--ink-soft);margin-bottom:3px}
+  .free-note textarea{width:100%;font-family:var(--mono);font-size:12px;border:1px dashed var(--line);border-radius:5px;padding:7px;color:var(--ink);min-height:36px;resize:vertical;background:#fcfdfe}
+  .free-note textarea:focus{outline:none;border-color:var(--blue)}
+  .notebtn{font-family:var(--sans);font-size:11px;color:var(--ink-soft);border:1px dashed var(--line);background:var(--paper);padding:3px 8px;border-radius:20px;cursor:pointer;line-height:1.4}
+  .notebtn:hover{border-color:var(--blue);color:var(--blue)}
+  .notebtn.has{border-style:solid;border-color:var(--blue);color:var(--blue);background:var(--blue-wash)}
+  .notewrap{flex-basis:100%;margin-top:6px;display:none}
+  .notewrap.open{display:block}
+  .notewrap input{width:100%;max-width:440px;font-family:var(--mono);font-size:12px;border:1px solid var(--blue);border-radius:5px;padding:5px 8px;color:var(--ink);background:#fcfdfe}
+  .notewrap input:focus{outline:none;box-shadow:0 0 0 2px var(--blue-wash)}
+  .preview{position:sticky;top:0;align-self:start;height:100vh;border-left:1px solid var(--line);background:var(--paper);display:flex;flex-direction:column}
+  .pv-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+  .pv-head .t{font-weight:700;font-size:13.5px}
+  .pv-head .t small{font-weight:400;color:var(--ink-soft);font-size:11.5px;margin-left:6px}
+  .pv-actions button{font-family:var(--sans);font-size:12px;cursor:pointer;border-radius:6px;padding:6px 14px;border:1px solid var(--blue);background:var(--blue);color:#fff}
+  .pv-actions button:hover{background:var(--blue-deep)}
+  .pv-actions button.done{background:#2e7d5b;border-color:#2e7d5b}
+  .pv-body{flex:1;overflow:auto;padding:14px 16px}
+  #output{font-family:var(--mono);font-size:11.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word;margin:0}
+  .pv-empty{color:var(--ink-soft);font-size:12.5px;padding:16px 0}
+  @media(max-width:900px){.app{grid-template-columns:1fr}.preview{position:static;height:auto;border-left:none;border-top:1px solid var(--line)}.pv-body{max-height:52vh}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="form">
+    <header class="top">
+      <h1>身體診察病歷產生器 <span class="en">Physical Examination</span></h1>
+      <span class="sub">點選項目才會出現；沒點到的自動略過 → 右側即時產出純文字</span>
+    </header>
+    <div class="toolbar">
+      <button id="collapseAll">收合全部</button>
+      <button id="expandAll">展開全部</button>
+      <button id="resetAll">清空重填</button>
+    </div>
+    <div id="sections"></div>
+  </div>
+  <aside class="preview">
+    <div class="pv-head">
+      <div class="t">病歷預覽 <small>純文字</small></div>
+      <div class="pv-actions"><button id="copyBtn">複製</button></div>
+    </div>
+    <div class="pv-body">
+      <pre id="output"></pre>
+      <div class="pv-empty" id="pvEmpty">開始點選左側項目,產出會出現在這裡。<br>沒有點到的項目一律不會出現在病歷。</div>
+    </div>
+  </aside>
+</div>
+<script>
+/* ============================================================
+   MODEL — one entry per top-level section (block-level "未評估")
+   Field types:
+     pick   {label,key,opts,pre?,suf?,neg?,info?}   single choice
+     multi  {label,key,opts,pre?,sep?,info?}        many choices, joined
+     text   {label,key,pre?,suf?,ph?,w?,info?}      free text/number
+     pair   {label,key,pre?,suf?,ph?,w?,join?,info?} two inputs -> a{join}b
+     note   {text}                                  literal line, emitted when section active
+   info: shown in UI only (ⓘ disclosure); NEVER emitted to output.
+   Emission: section emits only touched fields (+ any 'note' lines) when not NA.
+   ============================================================ */
+const YN = ["+","-"];
+const BRUNN = ["I","II","III","IV","V","VI"];
+const MMT = ["0","1","2","3-","3","3+","4-","4","4+","5-","5"];
+const DTR = ["-","+","++","+++","++++"];
+const MAS = ["0","1","1+","2","3","4"];
+/* LAST-A / LAST-B item lists (each item = 1 point when selected) */
+const LAST_ITEMS = {
+  A:{ naming:["電話","鳳梨","筆","鱷魚","叉子"],
+      repet:["數學","郵差送信給我的鄰居"],
+      autosp:["從1數到10"],
+      picrec:["兔子","湯匙","香菸","眼睛"],
+      verbins:["指天花板","不要拿鑰匙,拿筆","先把手放在頭上，然後用一隻手指摸鼻子"] },
+  B:{ naming:["鉛筆","電視","長頸鹿","刀子","蝴蝶"],
+      repet:["文學","遊客想吃草莓冰淇淋"],
+      autosp:["從1數到10"],
+      picrec:["帽子","手","汽車","番茄"],
+      verbins:["指地板","不要拿杯子,拿牙刷","先用一隻手指摸耳朵,然後用兩隻手指摸額頭"] }
+};
+const MODEL = [
+
+/* ---------- GENERAL ---------- */
+{ id:"general", name:"General", en:"一般", preset:true, fields:[
+  {type:"pick", label:"Tube — NG", key:"tubeNG", opts:["(+)","(-)"], def:"(-)", group:"tubes", groupPre:"Tubes: ", groupLabel:"NG"},
+  {type:"pick", label:"Tube — Foley", key:"tubeFoley", opts:["(+)","(-)"], def:"(-)", group:"tubes", groupLabel:"Foley"},
+  {type:"pick", label:"Tube — Tracheostomy", key:"tubeTrach", opts:["(+)","(-)"], def:"(-)", group:"tubes", groupLabel:"Tracheostomy tube"},
+  {type:"text",  label:"Pain", key:"pain", pre:"Pain: ", ph:"0", w:"xs", def:"0"},
+  {type:"pick",  label:"HEENT — conjunctivae", key:"conj", pre:"conjunctivae: ", opts:["not pale","pale"], def:"not pale"},
+  {type:"pick",  label:"HEENT — sclerae", key:"sclerae", pre:"sclerae: ", opts:["anicteric","icteric"], def:"anicteric"},
+  {type:"text",  label:"HEENT — pupils", key:"pupils", pre:"pupils: isocoric ", ph:"3/3mm", w:"s", def:"3/3mm"},
+  {type:"pick",  label:"HEENT — light reflex", key:"lightref", pre:"light reflex ", opts:["+/+","+/-","-/+","-/-"], def:"+/+"},
+  {type:"multi", label:"HEENT — throat/oral", key:"throat", opts:["Throat injection (-)","swollen tonsil (-)","oral ulcer or thrush (-)","Throat injection (+)","swollen tonsil (+)","oral ulcer or thrush (+)"], def:["Throat injection (-)","swollen tonsil (-)","oral ulcer or thrush (-)"]},
+  {type:"multi", label:"Neck", key:"neck", pre:"Neck: ", opts:["supple","no stiffness","no jugular vein engorgement","no goiter","stiffness","jugular vein engorgement","goiter"], def:["supple","no stiffness","no jugular vein engorgement","no goiter"]},
+  {type:"multi", label:"Chest", key:"chest", pre:"Chest: ", opts:["Symmetric expansion","deformity (-)","breath sounds: clear","no crackles/wheezing/rhonchi","asymmetric expansion","crackles","wheezing","rhonchi"], def:["Symmetric expansion","deformity (-)","breath sounds: clear","no crackles/wheezing/rhonchi"]},
+  {type:"multi", label:"Heart", key:"heart", pre:"Heart: ", opts:["regular heart beats","no audible murmur/gallop/friction rub","irregular heart beats","murmur","gallop","friction rub"], def:["regular heart beats","no audible murmur/gallop/friction rub"]},
+  {type:"multi", label:"Abdomen", key:"abd", pre:"Abdomen: ", opts:["soft and flat","bowel sound: normoactive","no tenderness/pain/shifting dullness","distended","bowel sound: hypoactive","bowel sound: hyperactive","tenderness","shifting dullness"], def:["soft and flat","bowel sound: normoactive","no tenderness/pain/shifting dullness"]},
+  {type:"pick",  label:"Flank", key:"flank", pre:"Flank: ", opts:["no knocking pain","knocking pain (+)"], def:"no knocking pain"},
+  {type:"multi", label:"Extremities", key:"ext", pre:"Extremities: ", opts:["no edema/cyanosis/coldness/sweating","edema","cyanosis","coldness","sweating"], def:["no edema/cyanosis/coldness/sweating"]}
+]},
+
+/* ---------- NEUROLOGICAL ---------- */
+{ id:"neuro", name:"Neurological", en:"神經學", preset:true, fields:[
+  {type:"text", label:"Consciousness (GCS)", key:"gcs", pre:"Consciousness: ", ph:"E4M6V5", w:"s", def:"E4M6V5"},
+  {type:"pick", label:"Orientation", key:"orient", opts:["alert and oriented","confused","drowsy","stuporous","comatose"], def:"alert and oriented"},
+  {type:"pick", label:"Appearance", key:"appear", pre:"Appearance: ", opts:["fair spirit","poor spirit","ill-looking"], def:"fair spirit"},
+  {type:"pick", label:"Response", key:"resp", pre:"Response: ", opts:["cooperative","uncooperative"], def:"cooperative"},
+  {type:"pick", label:"PHQ-2 #1 little interest or pleasure", key:"phq1", pre:"PHQ-2 #1 (little interest/pleasure): ", opts:["0","1","2","3"], def:"0", info:"0: not at all｜1: several days｜2: more than half the days｜3: nearly every day（過去兩週內）"},
+  {type:"pick", label:"PHQ-2 #2 feeling down/depressed/hopeless", key:"phq2", pre:"PHQ-2 #2 (feeling down/depressed/hopeless): ", opts:["0","1","2","3"], def:"0"}
+]},
+
+/* ---------- MMSE ---------- */
+{ id:"mmse", name:"MMSE", en:"簡短智能測驗", preset:true, secOverride:true, fields:[
+  {type:"text", label:"Total /30 （自動加總，可手動覆寫）", key:"total", pre:"MMSE: ", ph:"__", w:"xs", suf:"/30", def:"30", auto:true},
+  {type:"pick", label:"Education level", key:"edu", pre:"education level: ", opts:["國小","國中","高中","大學","專科","碩士","博士"]},
+  {type:"pick", label:"Time /5", key:"m_time", opts:["0","1","2","3","4","5"], def:"5"},
+  {type:"pick", label:"Place /5", key:"m_place", opts:["0","1","2","3","4","5"], def:"5"},
+  {type:"pick", label:"Registration /3", key:"m_reg", opts:["0","1","2","3"], def:"3"},
+  {type:"pick", label:"Recall /3", key:"m_recall", opts:["0","1","2","3"], def:"3"},
+  {type:"pick", label:"Attention & calculation /5", key:"m_attn", opts:["0","1","2","3","4","5"], def:"5"},
+  {type:"pick", label:"Naming /2", key:"m_naming", opts:["0","1","2"], def:"2"},
+  {type:"pick", label:"Repeat /1", key:"m_repeat", opts:["0","1"], def:"1"},
+  {type:"pick", label:"Reading /1", key:"m_reading", opts:["0","1"], def:"1"},
+  {type:"pick", label:"Writing /1", key:"m_writing", opts:["0","1"], def:"1"},
+  {type:"pick", label:"3-step command /3", key:"m_cmd", opts:["0","1","2","3"], def:"3"},
+  {type:"pick", label:"Copy drawing (visual-spatial construction) /1", key:"m_copy", opts:["0","1"], def:"1"}
+]},
+
+/* ---------- HEMINEGLECT ---------- */
+{ id:"hemi", name:"Hemineglect", en:"半側忽略", preset:true, secOverride:true, fields:[
+  {type:"text", label:"Star cancellation test /54", key:"star", pre:"Star cancellation test: ", ph:"__", w:"xs", suf:"/54", def:"54",
+    info:"由45個英文字母與大小不同的兩種星形圖案各54個隨機排列組成,參與者須圈出所看到的小星形。滿分54,正常範圍51–54。"},
+  {type:"pick", label:"Preferential gaze", key:"gaze", pre:"Preferential gaze ", opts:YN, neg:true, def:"-"},
+  {type:"pick", label:"Bisection tests", key:"bisect", pre:"Bisection tests: ", opts:["intact","+"], def:"intact"},
+  {type:"pick", label:"Clock drawing test", key:"clock", pre:"Clock drawing test: ", opts:["intact","+"], def:"intact"}
+]},
+
+/* ---------- SPEECH ---------- */
+{ id:"speech", name:"Speech", en:"語言", preset:true, secOverride:true, secOverrideScope:"last", fields:[
+  {type:"pick", label:"LAST 版本（擇一）", key:"lastver", pre:"LAST version: ", opts:["A","B"], info:"LAST A、B 式擇一測驗。點選版本後，下方會顯示該版本題目；每題點選＝答對得1分，未點＝0分。分數自動加總。未選版本則 LAST 整段不顯示。"},
+  {type:"lastitem", label:"Naming（點選＝答對，每題1分 /5）", key:"naming", itemKey:"naming"},
+  {type:"lastitem", label:"Repetition（每題1分 /2）", key:"repet", itemKey:"repet"},
+  {type:"lastitem", label:"Automatic speech（1分）", key:"autosp", itemKey:"autosp"},
+  {type:"lastitem", label:"Picture recognition（每題1分 /4）", key:"picrec", itemKey:"picrec"},
+  {type:"lastitem", label:"Verbal instruction（每題1分 /3）", key:"verbins", itemKey:"verbins"},
+  {type:"multi", label:"Expression — output", key:"exout", opts:["spontaneous verbal output(+)","verbal output under cues(+)","spontaneous verbal output(-)","verbal output under cues(-)"], def:["spontaneous verbal output(+)"]},
+  {type:"pick", label:"Fluency", key:"fluency", opts:["fluent","non-fluent"], def:"fluent"},
+  {type:"multi", label:"Speech signs", key:"spsign", opts:["slurred speech(-)","decreased volume(-)","dysarthria(-)","slurred speech(+)","decreased volume(+)","dysarthria(+)"], def:["slurred speech(-)"]},
+  {type:"pick", label:"Output length", key:"outlen", opts:["words","phrases","short sentence","long sentence"], def:"long sentence"},
+  {type:"multi", label:"Paraphasia / other", key:"para", opts:["phonemic paraphasia (-)","semantic paraphasia (-)","neologism(-)","echolalia(-)","phonemic paraphasia (+)","semantic paraphasia (+)","neologism(+)","echolalia(+)"], def:["phonemic paraphasia (-)","semantic paraphasia (-)","neologism(-)","echolalia(-)"]},
+  {type:"pick", label:"Apraxia of speech", key:"apraxia", pre:"Apraxia of speech: ", opts:YN, neg:true, def:"-",
+    info:"e.g. Fair for single vowels, poor for vowel sequences, poor for consonants（A,I,U,E,O；ㄅㄆㄇㄈ, ba,pa,ta,da）"}
+]},
+
+/* ---------- SWALLOWING ---------- */
+{ id:"swallow", name:"Swallowing", en:"吞嚥", preset:true, fields:[
+  {type:"pick", label:"Feeding route", key:"route", opts:["NG feeding","normal diet without choking"], def:"normal diet without choking"},
+  {type:"pick", label:"FOIS /7", key:"fois", pre:"Functional Oral Intake Scale (FOIS): ", opts:["0","1","2","3","4","5","6","7"], def:"7",
+    info:"1 完全無法由口進食｜2 依賴管灌,偶爾由口嚐試少量｜3 依賴管灌,能由口持續練習某些食物｜4 完全由口進食單一質地｜5 完全由口進食多樣質地,須特別調配或代償｜6 完全由口進食多樣質地,不須調配但有特定限制｜7 完全由口進食,無任何限制"},
+  {type:"pick", label:"Cough ability", key:"cough", pre:"Cough ability: ", opts:["functional","unable to cough up"], def:"functional"},
+  {type:"pick", label:"Tongue movement", key:"tongue", pre:"Tongue movement: ", opts:["full range","to lip & mouth angle","minimal movement"], def:"full range"},
+  {type:"pick", label:"Oral holding — drooling", key:"drool", pre:"Oral holding — drooling ", opts:YN, neg:true, def:"-"},
+  {type:"pick", label:"Oral holding — premature spillage", key:"spillage", pre:"premature spillage ", opts:YN, neg:true, def:"-"},
+  {type:"text", label:"RSST /30 sec", key:"rsst", pre:"RSST: ", ph:"__", w:"xs", suf:" times/30 seconds", def:"6",
+    info:"請病人於30秒內盡量吞口水,檢查者以兩指觸診甲狀軟骨與舌骨,計算吞嚥次數（吞嚥時喉結與舌骨會上抬越過手指再回復）。"},
+  {type:"pick", label:"3mL trial — time to larynx elevation", key:"t3time", pre:"3mL water — time to larynx elevation: ", opts:["<1s","1-3s",">3s"], def:"<1s"},
+  {type:"pick", label:"3mL trial — larynx elevation", key:"t3elev", pre:"  larynx elevation: ", opts:["full range","decreased","minimal movement"], def:"full range"},
+  {type:"pick", label:"3mL — choking timing", key:"t3choktime", pre:"    ", opts:["pre-deglutition","during-deglutition","post-deglutition"], info:"點選任一時機，Choking 會自動變為 (+)"},
+  {type:"pick", label:"3mL trial — choking", key:"t3chok", pre:"  choking ", opts:YN, neg:true, def:"-"},
+  {type:"pick", label:"3mL trial — wet voice", key:"t3voice", pre:"  voice quality (wet voice) ", opts:YN, neg:true, def:"-"},
+  {type:"pick", label:"3mL trial — multiple swallows", key:"t3multi", pre:"  multiple swallows ", opts:YN, neg:true, def:"-"},
+  {type:"pick", label:"100mL — choking timing", key:"t100choktime", pre:"    ", opts:["pre-deglutition","during-deglutition","post-deglutition"], info:"點選任一時機，Choking 會自動變為 (+)"},
+  {type:"pick", label:"100mL trial — choking", key:"t100chok", pre:"100mL water — choking ", opts:YN, neg:true},
+  {type:"pick", label:"100mL trial — wet voice", key:"t100voice", pre:"  voice quality (wet voice) ", opts:YN, neg:true},
+  {type:"pick", label:"100mL trial — result", key:"t100res", pre:"  result: ", opts:["passed","Unable to complete",">30 sec"]}
+]},
+
+/* ---------- CRANIAL NERVES ---------- */
+{ id:"cn", name:"Cranial nerves", en:"腦神經", preset:true, fields:[
+  {type:"pick", label:"CN2 — visual acuity", key:"cn2va", pre:"CN2 visual acuity: ", opts:["intact","impaired"], def:"intact"},
+  {type:"pick", label:"CN2 — visual field", key:"cn2vf", pre:"CN2 visual field: ", opts:["intact","impaired"], def:"intact"},
+  {type:"text", label:"CN3/4/6 — pupil", key:"cn346pupil", pre:"CN3/4/6 pupil ", ph:"3/3mm", w:"s", def:"3/3mm"},
+  {type:"pick", label:"CN3/4/6 — light reflex", key:"cn346lr", pre:"light reflex R/L ", opts:["+/+","+/-","-/+","-/-"], def:"+/+"},
+  {type:"pick", label:"CN3/4/6 — ptosis", key:"ptosis", pre:"ptosis ", opts:YN, neg:true, def:"-"},
+  {type:"pick", label:"CN3/4/6 — EOM", key:"eom", pre:"extra-ocular movements: ", opts:["full and free","limited"], def:"full and free"},
+  {type:"pick", label:"CN5 — facial sensation", key:"cn5sens", pre:"CN5 facial sensation: ", opts:["intact","impaired"], def:"intact"},
+  {type:"pick", label:"CN5 — masticatory muscle", key:"cn5mast", pre:"masticatory muscle: ", opts:["intact","impaired"], def:"intact"},
+  {type:"pick", label:"CN7 — facial palsy", key:"cn7", pre:"CN7: ", opts:["no facial palsy","central type facial palsy","peripheral type facial palsy"], def:"no facial palsy"},
+  {type:"pick", label:"CN11 — SCM", key:"cn11scm", pre:"CN11 sternocleidomastoid: ", opts:["intact","decreased"]},
+  {type:"pick", label:"CN11 — trapezius", key:"cn11trap", pre:"trapezius: ", opts:["intact","decreased"]},
+  {type:"pick", label:"CN12 — tongue protruding", key:"cn12", pre:"CN12 tongue protruding: ", opts:["midline","deviation to left","deviation to right"], def:"midline"}
+]},
+
+/* ---------- MOTOR ---------- */
+{ id:"motor", name:"Motor status", en:"動作", preset:true, fields:[
+  {type:"pickpair", label:"Brunnstrom RUE proximal/distal", key:"brue", opts:BRUNN, join:"/", subLabels:["prox","distal"], info:"Brunnstrom stage: I,II,III,IV,V,VI"},
+  {type:"pick",     label:"Brunnstrom RLE", key:"brle", opts:BRUNN},
+  {type:"pickpair", label:"Brunnstrom LUE proximal/distal", key:"blue", opts:BRUNN, join:"/", subLabels:["prox","distal"]},
+  {type:"pick",     label:"Brunnstrom LLE", key:"blle", opts:BRUNN},
+  {type:"pickpair", label:"Muscle strength RUE prox/distal", key:"msrue", opts:MMT, join:"/", subLabels:["prox","distal"], info:"MMT 0–5（含 +/-）"},
+  {type:"pickpair", label:"Muscle strength RLE prox/distal", key:"msrle", opts:MMT, join:"/", subLabels:["prox","distal"]},
+  {type:"pickpair", label:"Muscle strength LUE prox/distal", key:"mslue", opts:MMT, join:"/", subLabels:["prox","distal"]},
+  {type:"pickpair", label:"Muscle strength LLE prox/distal", key:"mslle", opts:MMT, join:"/", subLabels:["prox","distal"]},
+  {type:"pickpair", label:"Tendon reflex — Elbow flexor R/L", key:"trelbf", opts:DTR, join:"/", subLabels:["R","L"], def:{a:"++",b:"++"}, info:"-, +, ++, +++, ++++"},
+  {type:"pickpair", label:"Tendon reflex — Elbow extensor R/L", key:"trelbe", opts:DTR, join:"/", subLabels:["R","L"], def:{a:"++",b:"++"}},
+  {type:"pickpair", label:"Tendon reflex — Brachialis R/L", key:"trbrach", opts:DTR, join:"/", subLabels:["R","L"], def:{a:"++",b:"++"}},
+  {type:"pickpair", label:"Tendon reflex — Knee extensor R/L", key:"trknee", opts:DTR, join:"/", subLabels:["R","L"], def:{a:"++",b:"++"}},
+  {type:"pickpair", label:"Tendon reflex — Ankle plantarflexor R/L", key:"trankle", opts:DTR, join:"/", subLabels:["R","L"], def:{a:"++",b:"++"}},
+  {type:"pickpair", label:"Spasticity — Elbow flexor R/L", key:"spelbf", opts:MAS, join:"/", subLabels:["R","L"], def:{a:"0",b:"0"}, info:"Modified Ashworth Scale: 0,1,1+,2,3,4"},
+  {type:"pickpair", label:"Spasticity — Wrist flexor R/L", key:"spwrist", opts:MAS, join:"/", subLabels:["R","L"], def:{a:"0",b:"0"}},
+  {type:"pickpair", label:"Spasticity — Finger flexor R/L", key:"spfing", opts:MAS, join:"/", subLabels:["R","L"], def:{a:"0",b:"0"}},
+  {type:"pickpair", label:"Spasticity — Knee extensor R/L", key:"spknee", opts:MAS, join:"/", subLabels:["R","L"], def:{a:"0",b:"0"}},
+  {type:"pickpair", label:"Spasticity — Ankle dorsiflexor R/L", key:"spankle", opts:MAS, join:"/", subLabels:["R","L"], def:{a:"0",b:"0"}},
+  {type:"pick", label:"Babinski's sign R/L", key:"babinski", pre:"Babinski's sign R/L: ", opts:["-/-","+/-","-/+","+/+"], def:"-/-"},
+  {type:"pick", label:"Hoffmann's sign R/L", key:"hoffmann", pre:"Hoffmann's sign R/L: ", opts:["-/-","+/-","-/+","+/+"], def:"-/-"},
+  {type:"pick", label:"Ankle clonus R/L", key:"clonus", pre:"Ankle clonus R/L: ", opts:["-/-","+/-","-/+","+/+"], def:"-/-"}
+]},
+
+/* ---------- SENSATION ---------- */
+{ id:"sensation", name:"Sensation", en:"感覺", preset:true, fields:[
+  {type:"pick", label:"Pinprick / light touch", key:"pinprick", pre:"Pinprick/light touch sensation: ", opts:["intact","impaired"], def:"intact"},
+  {type:"pick", label:"Proprioception", key:"proprio", pre:"Proprioception: ", opts:["intact","impaired"], def:"intact"}
+]},
+
+/* ---------- COORDINATION & BALANCE ---------- */
+{ id:"coord", name:"Coordination & Balance", en:"協調與平衡", preset:true, fields:[
+  {type:"pick", label:"Finger-nose-finger test", key:"fnf", pre:"Finger-nose-finger test: ", opts:["intact","dysmetria"], def:"intact"},
+  {type:"pick", label:"Heel-knee-shin test", key:"hks", pre:"Heel-knee-shin test: ", opts:["intact","dysmetria"], def:"intact"}
+]},
+
+/* ---------- SPHINCTER ---------- */
+{ id:"sphincter", name:"Sphincter", en:"括約肌", fields:[
+  {type:"pick", label:"Defecation — continence", key:"defcont", pre:"Defecation: ", opts:["continent","partially continent","incontinent"]},
+  {type:"multi", label:"Defecation — aid", key:"defaid", opts:["to toilet","to comode chair","needed Dulcolax","with diaper"]},
+  {type:"pick", label:"Urination — continence", key:"uricont", pre:"Urination: ", opts:["continent","partially continent","incontinent"]},
+  {type:"multi", label:"Urination — aid", key:"uriaid", opts:["to toilet","to comode chair","with Foley catheter","with diaper"]}
+]},
+
+/* ---------- FUNCTIONAL STATUS ---------- */
+{ id:"func", name:"Functional status", en:"功能狀態", fields:[
+  {type:"pick", label:"Sitting balance — static", key:"sitstat", pre:"Sitting balance (static): ", opts:["normal","good","fair","poor","absent","NA"]},
+  {type:"pick", label:"Sitting balance — dynamic", key:"sitdyn", pre:"Sitting balance (dynamic): ", opts:["normal","good","fair","poor","absent","NA"]},
+  {type:"pick", label:"Standing balance — static", key:"standstat", pre:"Standing balance (static): ", opts:["normal","good","fair","poor","absent","NA"]},
+  {type:"pick", label:"Standing balance — dynamic", key:"standdyn", pre:"Standing balance (dynamic): ", opts:["normal","good","fair","poor","absent","NA"]},
+  {type:"pick", label:"Rolling to right", key:"rollr", pre:"Rolling to right: ", opts:["independent","supervision","contact guard","minimal assistance","moderate assistance","maximal assistance","dependent","NA"]},
+  {type:"pick", label:"Rolling to left", key:"rolll", pre:"Rolling to left: ", opts:["independent","supervision","contact guard","minimal assistance","moderate assistance","maximal assistance","dependent","NA"]},
+  {type:"pick", label:"Sitting up", key:"situp", pre:"Sitting up: ", opts:["independent","supervision","contact guard","minimal assistance","moderate assistance","maximal assistance","dependent","NA"]},
+  {type:"pick", label:"Standing up", key:"standup", pre:"Standing up: ", opts:["independent","supervision","contact guard","minimal assistance","moderate assistance","maximal assistance","dependent","NA"]},
+  {type:"pick", label:"Transfer", key:"transfer", pre:"Transfer: ", opts:["independent","supervision","contact guard","minimal assistance","moderate assistance","maximal assistance","dependent","NA"]},
+  {type:"pick", label:"Ambulation", key:"ambul", pre:"Ambulation: ", opts:["independent","supervision","contact guard","minimal assistance","moderate assistance","maximal assistance","dependent","NA"]},
+  {type:"pick", label:"行走輔具", key:"aid", pre:"行走輔具: ", opts:["none","unicane","quadricane","walker","wheelwalker","NA (not able to walk)"]},
+  {type:"pick", label:"Slope / Stairs", key:"slope", pre:"Slope/Stairs: ", opts:["independent","supervision","contact guard","minimal assistance","moderate assistance","maximal assistance","dependent","NA"]},
+  {type:"pick", label:"Functional Ambulation Classification", key:"fac", pre:"Functional Ambulation Classification: ", opts:["0","1","2","3","4","5"],
+    info:"0 不能行走｜1 需他人持續扶持維持平衡/協調｜2 需他人間歇扶持｜3 平坦地面可獨立行走,需人在旁監督/口頭指令｜4 平坦地面可獨立,樓梯坡度不平路面需監督｜5 各種狀況下均可獨立行走"}
+]},
+
+/* ---------- BARTHEL INDEX ---------- */
+{ id:"barthel", name:"Barthel index", en:"巴氏量表", fields:[
+  {type:"text", label:"Total /100 （自動加總）", key:"btotal", pre:"Barthel index: ", ph:"__", w:"xs", suf:"/100", auto:true},
+  {type:"pick", label:"Feeding /10", key:"feed", pre:"Feeding: ", opts:["0","5","10"]},
+  {type:"pick", label:"Transfer /15", key:"trans", pre:"Transfer: ", opts:["0","5","10","15"]},
+  {type:"pick", label:"Grooming /5", key:"groom", pre:"Grooming: ", opts:["0","5"]},
+  {type:"pick", label:"Toilet /10", key:"toilet", pre:"Toilet: ", opts:["0","5","10"]},
+  {type:"pick", label:"Bathing /5", key:"bath", pre:"Bathing: ", opts:["0","5"]},
+  {type:"pick", label:"Walking /15", key:"walk", pre:"Walking: ", opts:["0","5","10","15"]},
+  {type:"pick", label:"Stair /10", key:"stair", pre:"Stair: ", opts:["0","5","10"]},
+  {type:"pick", label:"Dressing /10", key:"dress", pre:"Dressing: ", opts:["0","5","10"]},
+  {type:"pick", label:"Bowel /10", key:"bowel", pre:"Bowel: ", opts:["0","5","10"]},
+  {type:"pick", label:"Bladder /10", key:"bladder", pre:"Bladder: ", opts:["0","5","10"]}
+]},
+
+/* ---------- mRS ---------- */
+{ id:"mrs", name:"Modified Rankin Scale", en:"mRS", fields:[
+  {type:"pick", label:"mRS", key:"mrs", pre:"Modified Rankin Scale (mRS): ", opts:["0","1","2","3","4","5","6"],
+    info:"0 無症狀｜1 有症狀但無明顯障礙,不影響日常生活及工作｜2 輕度:影響工作,但生活起居能完全自理｜3 中度:起居需他人協助,但能自行走動｜4 中重度:起居與走動完全需協助｜5 重度:臥床、大小便失禁、完全需照護｜6 死亡"}
+]}
+
+];
+
+</script>
+<script>
+/* =========================================================================
+   app.js — render the model, handle interaction, generate plain text.
+   State: per-field value.
+     pick  -> string | undefined
+     multi -> array of strings (ordered by first click)
+     text  -> string
+     pair  -> {a,b}
+   Section NA: sec.na = true  (default true = "未評估" -> excluded)
+   A section is auto-un-NA'd the first time the user touches any field in it.
+   ========================================================================= */
+const state = {};   // state[secId] = {na:bool, notes:string, fields:{key:value}}
+const fieldInputs = {};  // fieldInputs[secId][key] = <input> for auto-computed totals
+let lastItemRefreshers = [];  // callbacks to rebuild LAST item checklists when version changes
+const pillSyncers = {};  // pillSyncers[secId][key] = fn to refresh that field's pill highlight
+try{ window.state = state; }catch(e){}
+const OUT = document.getElementById('output');
+const EMPTY = document.getElementById('pvEmpty');
+
+MODEL.forEach(s => {
+  const st={notes:"", fields:{}, fnotes:{}, fother:{}, secover:{mode:null,text:''}, excluded:false};
+  if(s.preset){
+    s.fields.forEach(f=>{
+      if(f.def===undefined) return;
+      if(Array.isArray(f.def)) st.fields[f.key]=[...f.def];
+      else if((f.type==='pair'||f.type==='pickpair') && f.def && typeof f.def==='object') st.fields[f.key]={a:f.def.a||"",b:f.def.b||""};
+      else st.fields[f.key]=f.def;
+    });
+  }
+  state[s.id]=st;
+});
+
+/* ---------- render ---------- */
+const root = document.getElementById('sections');
+
+function el(tag, cls, txt){const e=document.createElement(tag); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e;}
+
+MODEL.forEach(sec => {
+  const block = el('div','block'); block.dataset.sec = sec.id;
+
+  // head
+  const head = el('div','block-head');
+  const chev = el('span','chev','▾');
+  const name = el('span','name'); name.innerHTML = sec.name + ' <span class="en">'+sec.en+'</span>';
+  const xbtn = el('button','xbtn','✕'); xbtn.title='排除整段（不列入病歷）';
+  head.appendChild(chev); head.appendChild(name); head.appendChild(xbtn);
+
+  const applyExcluded=()=>{
+    const ex = state[sec.id].excluded;
+    block.classList.toggle('excluded', ex);
+    xbtn.classList.toggle('on', ex);
+    xbtn.textContent = ex ? '↩' : '✕';
+    xbtn.title = ex ? '已排除，點此恢復此段' : '排除整段（不列入病歷）';
+    if(ex) block.classList.add('collapsed');   // auto-collapse on exclude
+  };
+  xbtn.addEventListener('click', (e)=>{
+    e.stopPropagation();   // don't trigger head collapse toggle
+    const st=state[sec.id];
+    st.excluded = !st.excluded;
+    applyExcluded();
+    render();
+  });
+
+  // toggle collapse by clicking head (but not when clicking the X button)
+  head.addEventListener('click', ()=>{ block.classList.toggle('collapsed'); });
+
+  const body = el('div','block-body');
+
+  // ---- section-level override: "unable to test due to ___" / "其他" ----
+  let fieldsWrap=null;
+  if(sec.secOverride){
+    const so = state[sec.id].secover;
+    const bar = el('div','secover');
+    const b1 = el('button','secbtn','unable to test due to…');
+    const b2 = el('button','secbtn','其他');
+    const inp = el('input'); inp.type='text';
+    const wrap = el('div','secover-in');
+    wrap.appendChild(inp);
+    const applyUI=()=>{
+      b1.classList.toggle('on', so.mode==='unable');
+      b2.classList.toggle('on', so.mode==='other');
+      if(so.mode){ wrap.classList.add('open'); }
+      else { wrap.classList.remove('open'); }
+      inp.placeholder = so.mode==='unable' ? '輸入無法評估的原因（例：aphasia / poor cooperation）' : '輸入其他內容（會取代整段評估）';
+      if(fieldsWrap) fieldsWrap.classList.toggle('secover-dim', !!so.mode);
+    };
+    const choose=(mode)=>{
+      so.mode = (so.mode===mode)? null : mode;
+      if(!so.mode) so.text='';
+      inp.value = so.text||'';
+      applyUI();
+      if(so.mode) inp.focus();
+      render();
+    };
+    b1.addEventListener('click', ()=>choose('unable'));
+    b2.addEventListener('click', ()=>choose('other'));
+    inp.value = so.text||'';
+    inp.addEventListener('input', ()=>{ so.text=inp.value; render(); });
+    bar.appendChild(b1); bar.appendChild(b2); bar.appendChild(wrap);
+    body.appendChild(bar);
+    fieldsWrap = el('div','secover-fields');
+    body.appendChild(fieldsWrap);
+    applyUI();
+  }
+  const fieldHost = fieldsWrap || body;
+
+  sec.fields.forEach(f => {
+    const row = el('div','row');
+    const lbl = el('div','row-label'); lbl.textContent = f.label; row.appendChild(lbl);
+    const opts = el('div','opts');
+
+    const touch = ()=>{}; // no NA concept anymore; presence in output is driven purely by filled fields
+
+    if(f.type==='pick' || f.type==='multi'){
+      const pills=[];
+      const syncPills=()=>{
+        const v=state[sec.id].fields[f.key];
+        pills.forEach(p=>{
+          const on = f.type==='pick' ? v===p.dataset.val : (v||[]).includes(p.dataset.val);
+          p.classList.toggle('on', !!on);
+        });
+      };
+      (pillSyncers[sec.id]=pillSyncers[sec.id]||{})[f.key]=syncPills;
+      f.opts.forEach(o=>{
+        const p = el('button','pill'+(f.neg?' neg':''), o);
+        p.dataset.val=o;
+        p.addEventListener('click', ()=>{
+          const st=state[sec.id]; touch();
+          if(f.type==='pick'){
+            st.fields[f.key] = (st.fields[f.key]===o)? undefined : o;
+          } else {
+            let arr = st.fields[f.key] || [];
+            arr = arr.includes(o)? arr.filter(x=>x!==o) : [...arr,o];
+            st.fields[f.key] = arr.length? arr : undefined;
+          }
+          syncPills();
+          if(sec.id==='speech' && f.key==='lastver'){ lastItemRefreshers.forEach(fn=>fn()); }
+          // Swallowing: selecting a choking timing auto-sets choking to (+)
+          if(sec.id==='swallow'){
+            if(f.key==='t3choktime' && st.fields.t3choktime){ st.fields.t3chok='+'; (pillSyncers.swallow.t3chok||(()=>{}))(); }
+            if(f.key==='t100choktime' && st.fields.t100choktime){ st.fields.t100chok='+'; (pillSyncers.swallow.t100chok||(()=>{}))(); }
+          }
+          render();
+        });
+        pills.push(p); opts.appendChild(p);
+      });
+      syncPills();
+      // "其他" override: typing here REPLACES this field's selected value
+      const nbtn=el('button','notebtn','其他');
+      const nwrap=el('div','notewrap');
+      const ninp=el('input'); ninp.type='text'; ninp.placeholder='輸入其他內容（會取代此項的選項）';
+      const applyOverrideUI=()=>{
+        const active = !!(state[sec.id].fother[f.key] && state[sec.id].fother[f.key].trim());
+        nbtn.classList.toggle('has', active);
+        pills.forEach(p=>p.classList.toggle('overridden', active));
+      };
+      const existing=state[sec.id].fother[f.key]; if(existing){ ninp.value=existing; nwrap.classList.add('open'); }
+      applyOverrideUI();
+      nbtn.addEventListener('click', ()=>{
+        nwrap.classList.toggle('open');
+        if(nwrap.classList.contains('open')) ninp.focus();
+      });
+      ninp.addEventListener('input', ()=>{
+        const v=ninp.value.trim();
+        state[sec.id].fother[f.key]= v||undefined;
+        applyOverrideUI();
+        render();
+      });
+      nwrap.appendChild(ninp);
+      opts.appendChild(nbtn); opts.appendChild(nwrap);
+    }
+    else if(f.type==='text'){
+      if(f.pre){ const s=el('span','inline-lbl', f.pre); opts.appendChild(s); }
+      const inp = el('input','txt w-'+(f.w||'m')); inp.type='text'; if(f.ph)inp.placeholder=f.ph;
+      const initv=state[sec.id].fields[f.key]; if(typeof initv==='string') inp.value=initv;
+      inp.addEventListener('input', ()=>{ touch(); state[sec.id].fields[f.key]= inp.value.trim()||undefined; if(f.auto){ inp.dataset.manual = inp.value.trim()? '1':''; } render(); });
+      opts.appendChild(inp);
+      if(f.suf){ const s=el('span','inline-lbl', f.suf); opts.appendChild(s); }
+      if(f.auto){ (fieldInputs[sec.id]=fieldInputs[sec.id]||{})[f.key]=inp; }
+    }
+    else if(f.type==='pair'){
+      if(f.pre){ const s=el('span','inline-lbl', f.pre); opts.appendChild(s); }
+      const a=el('input','txt w-'+(f.w||'xs')); a.type='text'; if(f.ph)a.placeholder=f.ph;
+      const j=el('span','inline-lbl', ' '+(f.join||'/')+' ');
+      const b=el('input','txt w-'+(f.w||'xs')); b.type='text'; if(f.ph)b.placeholder=f.ph;
+      const pv=state[sec.id].fields[f.key]; if(pv && typeof pv==='object'){ a.value=pv.a||''; b.value=pv.b||''; }
+      const upd=()=>{ touch(); const av=a.value.trim(),bv=b.value.trim();
+        state[sec.id].fields[f.key]= (av||bv)? {a:av,b:bv} : undefined; render(); };
+      a.addEventListener('input',upd); b.addEventListener('input',upd);
+      opts.appendChild(a); opts.appendChild(j); opts.appendChild(b);
+      if(f.suf){ const s=el('span','inline-lbl', f.suf); opts.appendChild(s); }
+    }
+
+    else if(f.type==='pickpair'){
+      // two side-by-side pick groups -> stored as {a,b}
+      const subLabels = f.subLabels || ['R / prox','L / distal'];
+      const pillsA=[], pillsB=[];
+      const getV=()=> state[sec.id].fields[f.key] || {a:undefined,b:undefined};
+      const setV=(a,b)=>{ state[sec.id].fields[f.key] = (a||b)? {a:a||'',b:b||''} : undefined; };
+      const sync=()=>{
+        const v=getV();
+        pillsA.forEach(p=>p.classList.toggle('on', v.a===p.dataset.val));
+        pillsB.forEach(p=>p.classList.toggle('on', v.b===p.dataset.val));
+      };
+      const mkGroup=(which, pillArr, capText)=>{
+        const wrap=el('div'); wrap.style.cssText='display:flex;align-items:center;gap:5px;flex-wrap:wrap;width:100%;margin:2px 0';
+        const cap=el('span','inline-lbl', capText); cap.style.minWidth='58px'; wrap.appendChild(cap);
+        f.opts.forEach(o=>{
+          const p=el('button','pill', o); p.dataset.val=o;
+          p.addEventListener('click', ()=>{
+            const v=getV();
+            const cur = which==='a'? v.a : v.b;
+            const nv = (cur===o)? '' : o;
+            if(which==='a') setV(nv, v.b); else setV(v.a, nv);
+            sync(); render();
+          });
+          pillArr.push(p); wrap.appendChild(p);
+        });
+        return wrap;
+      };
+      opts.style.flexDirection='column'; opts.style.alignItems='stretch';
+      opts.appendChild(mkGroup('a', pillsA, subLabels[0]));
+      opts.appendChild(mkGroup('b', pillsB, subLabels[1]));
+      sync();
+      // "其他" override for the whole R/L pair
+      const orow=el('div'); orow.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%;margin:2px 0';
+      const nbtn=el('button','notebtn','其他');
+      const nwrap=el('div','notewrap');
+      const ninp=el('input'); ninp.type='text'; ninp.placeholder='輸入其他內容（會取代此項的選項）';
+      const applyOverrideUI=()=>{
+        const active=!!(state[sec.id].fother[f.key] && state[sec.id].fother[f.key].trim());
+        nbtn.classList.toggle('has', active);
+        [...pillsA,...pillsB].forEach(p=>p.classList.toggle('overridden', active));
+      };
+      const existing=state[sec.id].fother[f.key]; if(existing){ ninp.value=existing; nwrap.classList.add('open'); }
+      applyOverrideUI();
+      nbtn.addEventListener('click', ()=>{ nwrap.classList.toggle('open'); if(nwrap.classList.contains('open')) ninp.focus(); });
+      ninp.addEventListener('input', ()=>{ state[sec.id].fother[f.key]=ninp.value.trim()||undefined; applyOverrideUI(); render(); });
+      nwrap.appendChild(ninp);
+      orow.appendChild(nbtn); orow.appendChild(nwrap);
+      opts.appendChild(orow);
+    }
+
+    else if(f.type==='lastitem'){
+      // checklist of LAST items for the currently-selected version; each selected item = 1 point
+      const buildPills=()=>{
+        opts.innerHTML='';
+        const ver = state.speech.fields.lastver;
+        if(!ver){
+          // no version chosen yet -> nothing to answer; clear any stale selection
+          state[sec.id].fields[f.key] = undefined;
+          const hint=el('span','inline-lbl','（請先於上方選擇 LAST 版本 A 或 B）');
+          opts.appendChild(hint);
+          return;
+        }
+        const items = (LAST_ITEMS[ver] && LAST_ITEMS[ver][f.itemKey]) || [];
+        let sel = state[sec.id].fields[f.key];
+        if(!Array.isArray(sel)) sel=[];
+        // keep only items valid for this version
+        sel = sel.filter(x=>items.includes(x));
+        state[sec.id].fields[f.key] = sel.length? sel : undefined;
+        items.forEach(it=>{
+          const p=el('button','pill', it); p.dataset.val=it;
+          if(sel.includes(it)) p.classList.add('on');
+          p.addEventListener('click', ()=>{
+            let arr = state[sec.id].fields[f.key] || [];
+            if(!Array.isArray(arr)) arr=[];
+            arr = arr.includes(it)? arr.filter(x=>x!==it) : [...arr,it];
+            state[sec.id].fields[f.key] = arr.length? arr : undefined;
+            p.classList.toggle('on', arr.includes(it));
+            render();
+          });
+          opts.appendChild(p);
+        });
+      };
+      buildPills();
+      (lastItemRefreshers=lastItemRefreshers||[]).push(buildPills);
+    }
+
+    row.appendChild(opts);
+
+    // info disclosure (UI only)
+    if(f.info){
+      const d=el('details','info'); const sm=el('summary','','說明'); const bd=el('div','info-body', f.info);
+      d.appendChild(sm); d.appendChild(bd); row.appendChild(d);
+    }
+    fieldHost.appendChild(row);
+  });
+
+  // free note per section
+  const fn = el('div','free-note');
+  fn.innerHTML = '<div class="cap">補充（自由輸入,會原樣加到此區塊末尾）</div>';
+  const ta = el('textarea'); ta.rows=1;
+  ta.addEventListener('input', ()=>{ state[sec.id].notes = ta.value; render(); });
+  fn.appendChild(ta);
+  body.appendChild(fn);
+
+  block.appendChild(head); block.appendChild(body);
+  root.appendChild(block);
+  applyExcluded();
+});
+
+/* ============================================================
+   SECT_FMT — per-section plain-text formatters matching 示範病人 exactly.
+   Each receives {V,N,has,VN,st}:
+     V(key)   raw value | undefined         N(key) inline note | undefined
+     has(key) truthy if filled              VN(key) value + its note (space-joined)
+   Return the section BODY (no [Header] line). Empty string => section omitted.
+   Only emit lines/segments for fields the user filled.
+   ============================================================ */
+const SECT_FMT = {
+
+/* ---------- GENERAL ---------- */
+general({V,N,has,VN,OR}){
+  const L=[];
+  const tubes=[];
+  if(has('tubeNG'))    tubes.push('NG '+VN('tubeNG'));
+  if(has('tubeFoley')) tubes.push('Foley '+VN('tubeFoley'));
+  if(has('tubeTrach')) tubes.push('tracheostomy tube '+VN('tubeTrach'));
+  if(tubes.length) L.push('Tubes: '+tubes.join(', '));
+  if(has('pain')) L.push('Pain: '+V('pain'));
+  const top=L.join('\n');
+
+  const rest=[];
+  const heentInner=[];
+  if(has('conj'))    heentInner.push('conjunctivae: '+VN('conj'));
+  if(has('sclerae')) heentInner.push('sclerae: '+VN('sclerae'));
+  if(has('pupils'))  heentInner.push('pupils: isocoric '+VN('pupils'));
+  if(has('lightref'))heentInner.push('light reflex '+VN('lightref'));
+  const throat = has('throat')? VN('throat') : '';
+  if(heentInner.length || throat){
+    let h='HEENT: '+heentInner.join(', ');
+    if(heentInner.length) h+=', ';           // trailing ", " like demo
+    if(throat) h+='\n       '+throat+' ';     // demo has trailing space after throat line
+    rest.push(h);
+  }
+  if(has('neck')) rest.push('Neck: '+VN('neck'));
+  if(has('chest'))rest.push('Chest: '+VN('chest'));
+  if(has('heart'))rest.push('Heart: '+VN('heart'));
+  if(has('abd'))  rest.push('Abdomen: '+VN('abd')+'.');
+  if(has('flank'))rest.push('Flank: '+VN('flank')+'.');
+  if(has('ext'))  rest.push('Extremities: '+VN('ext'));
+  const restStr=rest.join('\n');
+  if(top && restStr) return top+'\n\n'+restStr;
+  return top||restStr;
+},
+
+/* ---------- NEUROLOGICAL ---------- */
+neuro({V,has,VN}){
+  const L=[];
+  if(has('gcs')||has('orient')){
+    const parts=[];
+    if(has('gcs')) parts.push(VN('gcs'));
+    if(has('orient')) parts.push(VN('orient'));
+    L.push('Consciousness: '+parts.join(', '));
+  }
+  if(has('appear')) L.push('Appearance: '+VN('appear'));
+  if(has('resp')) L.push('Response: '+VN('resp'));
+  if(has('phq1')||has('phq2')){
+    const p1=has('phq1')?V('phq1'):'';
+    const p2=has('phq2')?V('phq2'):'';
+    L.push('Mood (PHQ-2): '+(p1!==''?p1:p2));
+    L.push('1. Little interest or pleasure in doing things:'+p1);
+    L.push('2. Feeling down, depressed or hopeless:'+p2);
+  }
+  return L.join('\n');
+},
+
+/* ---------- MMSE ---------- */
+mmse({V,has}){
+  const items=['m_time','m_place','m_reg','m_recall','m_attn','m_naming','m_repeat','m_reading','m_writing','m_cmd','m_copy'];
+  if(!['total','edu'].some(has) && !items.some(has)) return '';
+  let head='';
+  if(has('total')) head+=' '+V('total')+'/30';
+  if(has('edu'))   head+=' (education level:'+V('edu')+')';
+  const L=[];
+  const g=(k)=> has(k)? V(k) : '';
+  if(has('m_time')||has('m_place')) L.push(' Time(5)/Place(5): '+g('m_time')+'/'+g('m_place'));
+  if(has('m_reg')||has('m_recall')) L.push(' Registration(3)/Recall(3): '+g('m_reg')+'/'+g('m_recall'));
+  if(has('m_attn')) L.push(' Attention and calculation(5): '+g('m_attn'));
+  if(has('m_naming')||has('m_repeat')||has('m_reading')||has('m_writing'))
+    L.push(' Naming(2)/Repeat(1)/Reading(1)/Writing(1): '+g('m_naming')+'/'+g('m_repeat')+'/'+g('m_reading')+'/'+g('m_writing'));
+  if(has('m_cmd')||has('m_copy'))
+    L.push(' 3-step command(3)/Copy drawing(visual-spatial construction)(1): '+g('m_cmd')+'/'+g('m_copy'));
+  return '\x00'+head.trimEnd()+ (L.length? '\n'+L.join('\n') : '');
+},
+
+/* ---------- HEMINEGLECT ---------- */
+hemi({has,V,N}){
+  const L=[];
+  if(has('star')){
+    let s=String(V('star'));
+    if(!/\/\s*54\s*$/.test(s)) s=s+'/54';
+    L.push('-Star cancellation test: '+s+(N('star')?' '+N('star'):''));
+  }
+  if(has('gaze')) L.push('-Preferential gaze ('+V('gaze')+(N('gaze')?' '+N('gaze'):'')+')');
+  if(has('bisect')) L.push('-Bisection tests: '+V('bisect')+(N('bisect')?' '+N('bisect'):''));
+  if(has('clock')) L.push('-Clock drawing test: '+V('clock')+(N('clock')?' '+N('clock'):''));
+  return L.join('\n');
+},
+
+/* ---------- SPEECH ---------- */
+speech({V,N,has,VN,OR,st,so}){
+  const L=[];
+  const soActive = !!(so && so.mode);
+  const soLine = so && so.mode==='unable' ? ('unable to test due to '+(so.text||'').trim()) : (so? (so.text||'').trim() : '');
+
+  // ----- LAST score block (replaced by override when active; omitted entirely if no version chosen) -----
+  if(soActive){
+    L.push(soLine);
+  } else if(st.fields.lastver){
+    const ver = st.fields.lastver;
+    const items = LAST_ITEMS[ver] || LAST_ITEMS.B;
+    const detail = (k)=>{
+      const list = items[k] || [];
+      const sel = Array.isArray(st.fields[k])? st.fields[k] : [];
+      const parts = list.map(it=> it+'( '+(sel.includes(it)?'1':'0')+'/1)');
+      return { count: sel.length, str: parts.join('、') };
+    };
+    const nm=detail('naming'), rp=detail('repet'), au=detail('autosp'),
+          pc=detail('picrec'), vb=detail('verbins');
+    const expScore = nm.count+rp.count+au.count;
+    const recScore = pc.count+vb.count;
+    const totalScore = expScore+recScore;
+    L.push('LAST-'+ver+' total score:  '+totalScore+'/15');
+    L.push('Expression index score:  '+expScore+'/8');
+    L.push('Naming score ( '+nm.count+'/5): '+nm.str);
+    L.push('Repetition score ( '+rp.count+'/2): '+rp.str+' ');
+    L.push('Automatic speech score ( '+au.count+'/1): '+au.str);
+    L.push('Receptive index score:  '+recScore+'/7');
+    L.push('Picture recognition score ( '+pc.count+'/4): '+pc.str);
+    L.push('Verbal instruction score ( '+vb.count+'/3): '+vb.str);
+  }
+
+  // ----- Expression sub-block: each line only if its field has a value (else disappears) -----
+  const E=[];
+  if(has('exout'))   E.push(' '+VN('exout').replace(/, /g,'/'));
+  if(has('fluency')) E.push(' '+VN('fluency')+', ');
+  if(has('spsign'))  E.push(' '+VN('spsign'));
+  if(has('outlen'))  E.push(' '+VN('outlen'));
+  if(has('para'))    E.push(' '+VN('para'));
+  const apraxiaOn = has('apraxia');
+  if(E.length || apraxiaOn){
+    L.push('');
+    L.push('-Expression:');
+    E.forEach(x=>L.push(x));
+    if(apraxiaOn){
+      L.push(' ');
+      L.push('Apraxia of speech: ('+V('apraxia')+')');
+      // descriptive lines only shown when apraxia is present (+); hidden for (-)
+      if(V('apraxia')==='+'){
+        L.push('  -Fair for single vowels, poor for vowel sequences, poor for consonants ');
+        L.push('  -(e.g.A,I,U,E,O; ㄅㄆㄇㄈ, ba,pa,ta,da)');
+      }
+    }
+  }
+  return L.join('\n');
+},
+
+/* ---------- SWALLOWING ---------- */
+swallow({V,has,VN}){
+  const L=[];
+  let head='';
+  if(has('route')) head='  '+V('route')+' ';   // demo: "[Swallowing]  NG feeding " (2 spaces + trailing space)
+  if(has('fois')) L.push('Functional Oral Intake Scale (FOIS):'+V('fois'));
+  if(has('cough')) L.push('-\tCough ability: '+VN('cough'));
+  if(has('tongue')) L.push('-\tTongue movement: '+VN('tongue'));
+  if(has('drool')||has('spillage')){
+    let o='-\tOral holding:  ';
+    if(has('drool')) o+='Drooling: '+VN('drool');
+    if(has('drool')&&has('spillage')) o+=', ';
+    if(has('spillage')) o+='premature spillage: '+VN('spillage');
+    L.push(o);
+  }
+  if(has('rsst')) L.push('-\tRepetitive Saliva Swallowing Test (RSST):   '+V('rsst')+' times/30 seconds');
+  const t3=['t3time','t3elev','t3chok','t3choktime','t3voice','t3multi'].some(has);
+  if(t3){
+    L.push('-\tSwallow trial: 3mL water');
+    if(has('t3time')) L.push('‧\tTime from instruction to larynx elevation:  '+V('t3time'));
+    if(has('t3elev')) L.push('‧\tLarynx elevation:  '+VN('t3elev'));
+    if(has('t3chok')){ let c='‧\tChoking: '+V('t3chok'); if(has('t3choktime')) c+=' ('+V('t3choktime')+')'; L.push(c); }
+    if(has('t3voice')) L.push('‧\tVoice quality (wet voice):  '+V('t3voice'));
+    if(has('t3multi')) L.push('‧\tMultiple swallows:  '+V('t3multi'));
+  }
+  const t100=['t100chok','t100choktime','t100voice','t100res'].some(has);
+  if(t100){
+    L.push('-\tSwallow trial: 100mL water (if 3 ml water swallow trial passed)');
+    if(has('t100chok')){ let c='‧\tChoking: '+V('t100chok'); if(has('t100choktime')) c+=' ('+V('t100choktime')+')'; L.push(c); }
+    if(has('t100voice')) L.push('‧\tVoice quality (wet voice): '+V('t100voice'));
+    if(has('t100res')) L.push('‧\t'+VN('t100res'));
+  }
+  return '\x00'+head+ (L.length? '\n'+L.join('\n') : '');
+},
+
+/* ---------- CRANIAL NERVES ---------- */
+cn({V,has,VN}){
+  const L=[];
+  // CN2
+  if(has('cn2va')||has('cn2vf')){
+    L.push('-CN 2: ');
+    if(has('cn2va')) L.push(' visual acuity: '+VN('cn2va'));
+    if(has('cn2vf')) L.push(' visual field: '+VN('cn2vf'));
+  }
+  // CN3.4.6
+  if(has('cn346pupil')||has('cn346lr')||has('ptosis')||has('eom')){
+    let l='-CN 3.4.6:';
+    const seg=[];
+    if(has('cn346pupil')) seg.push(' pupil '+VN('cn346pupil'));
+    if(has('cn346lr')) seg.push(' light reflex: right/left '+VN('cn346lr'));
+    if(has('ptosis')) seg.push(' ptosis('+V('ptosis')+')');
+    l+=seg.join(',')+', ';
+    L.push(l);
+    if(has('eom')) L.push('           extra-ocular movements: '+VN('eom')+';');
+  }
+  // CN5
+  if(has('cn5sens')||has('cn5mast')){
+    const seg=[];
+    if(has('cn5sens')) seg.push('facial sensation: '+VN('cn5sens'));
+    if(has('cn5mast')) seg.push('masticatory muscle: '+VN('cn5mast'));
+    L.push('-CN 5: '+seg.join('; '));
+  }
+  // CN7
+  if(has('cn7')) L.push('-CN 7: '+VN('cn7'));
+  // CN11
+  if(has('cn11scm')||has('cn11trap')){
+    const seg=[];
+    if(has('cn11scm')) seg.push('sternocleidomastoid muscle: '+VN('cn11scm'));
+    if(has('cn11trap')) seg.push('trapezius: '+VN('cn11trap'));
+    L.push('-CN 11: '+seg.join('; '));
+  }
+  // CN12
+  if(has('cn12')) L.push('-CN 12: tongue protruding: '+VN('cn12'));
+  return L.join('\n');
+},
+
+/* ---------- MOTOR ---------- */
+motor({V,has,VN,OR}){
+  const L=[];
+  // Brunnstrom — only if any Brunnstrom field set
+  if(has('brue')||has('brle')||has('blue')||has('blle')){
+    L.push('Brunnstrom\u2019s stage:');
+    if(has('brue')||has('brle')) L.push(' RUE proximal/distal: '+(has('brue')?VN('brue'):'')+'; RLE:'+(has('brle')?VN('brle'):'')+' ');
+    if(has('blue')||has('blle')) L.push(' LUE proximal/distal: '+(has('blue')?VN('blue'):'')+'; LLE:'+(has('blle')?VN('blle'):''));
+  }
+  // Muscle strength — only if any set
+  if(has('msrue')||has('msrle')||has('mslue')||has('mslle')){
+    L.push('Muscle strength: ');
+    if(has('msrue')||has('msrle')) L.push(' RUE proximal/distal: '+(has('msrue')?VN('msrue'):'')+',  RLE proximal/distal: '+(has('msrle')?VN('msrle'):''));
+    if(has('mslue')||has('mslle')) L.push(' LUE proximal/distal: '+(has('mslue')?VN('mslue'):'')+',  LLE proximal/distal: '+(has('mslle')?VN('mslle'):''));
+  }
+  // Tendon reflex — only if any set
+  if(['trelbf','trelbe','trbrach','trknee','trankle'].some(has)){
+    if(L.length) L.push('');
+    L.push('Tendon reflex:  R/L');
+    if(has('trelbf')) L.push('Elbow flexor:   '+VN('trelbf'));
+    if(has('trelbe')) L.push('Elbow extensor:  '+VN('trelbe'));
+    if(has('trbrach')) L.push('Brachialis:   '+VN('trbrach'));
+    if(has('trknee')) L.push('Knee extensor:  '+VN('trknee'));
+    if(has('trankle')) L.push('Ankle plantarflexor: '+VN('trankle'));
+  }
+  // Spasticity — only if any set
+  if(['spelbf','spwrist','spfing','spknee','spankle'].some(has)){
+    if(L.length) L.push('');
+    L.push('Spasticity(Modified Ashworth Scale):  ');
+    L.push('                R/L                          R/L');
+    if(has('spelbf')||has('spknee')) L.push('Elbow flexor    '+(has('spelbf')?VN('spelbf'):'   ')+'      Knee extensor         '+(has('spknee')?VN('spknee'):''));
+    if(has('spwrist')||has('spankle')) L.push('Wrist flexor    '+(has('spwrist')?VN('spwrist'):'   ')+'      Ankle dorsiflexor  '+(has('spankle')?VN('spankle'):''));
+    if(has('spfing')) L.push('Finger flexor  '+VN('spfing'));
+  }
+  // Pathologic reflexes — each only if set
+  if(has('babinski')||has('hoffmann')||has('clonus')){
+    if(L.length) L.push('');
+    if(has('babinski')) L.push('Babinski\u2019s sign: right/left = '+V('babinski')+',');
+    if(has('hoffmann')) L.push('Hoffmann\u2019s sign: right/left = '+V('hoffmann')+',');
+    if(has('clonus')) L.push('Ankle clonus: right/left = '+V('clonus')+',');
+  }
+  return L.join('\n');
+},
+
+/* ---------- SENSATION ---------- */
+sensation({has,VN}){
+  const L=[];
+  if(has('pinprick')) L.push('-Pinprick/light touch sensation: '+VN('pinprick'));
+  if(has('proprio')) L.push('-Proprioception: '+VN('proprio'));
+  return L.join('\n');
+},
+
+/* ---------- COORDINATION & BALANCE ---------- */
+coord({has,VN}){
+  const L=[];
+  if(has('fnf')||has('hks')){
+    L.push('-Dysmetria: ');
+    if(has('fnf')) L.push(' - Finger-nose-finger test: '+VN('fnf'));
+    if(has('hks')) L.push(' - Heel-knee-shin test: '+VN('hks'));
+  }
+  return L.join('\n');
+},
+
+/* ---------- SPHINCTER ---------- */
+sphincter({has,V,VN}){
+  const L=[];
+  const buildAid=(aidKey)=>{
+    const arr=V(aidKey)||[];
+    const locs=arr.filter(x=>x==='to toilet'||x==='to comode chair');
+    const others=arr.filter(x=>x!=='to toilet'&&x!=='to comode chair');
+    // returns {loc:" to X ...", other:"a, b"} pieces
+    return { loc: locs.join(', '), other: others.join(', ') };
+  };
+  if(has('defcont')||has('defaid')){
+    let l='-Defecation: '+(has('defcont')?VN('defcont'):'');
+    if(has('defaid')){ const a=buildAid('defaid');
+      if(a.loc) l+=' '+a.loc;
+      if(a.other) l+=(a.loc||has('defcont')?', ':'')+a.other;
+    }
+    L.push(l);
+  }
+  if(has('uricont')||has('uriaid')){
+    let l='-Urination: '+(has('uricont')?VN('uricont'):'');
+    if(has('uriaid')){ const a=buildAid('uriaid');
+      if(a.loc) l+=' '+a.loc;
+      if(a.other) l+=(a.loc||has('uricont')?', ':'')+a.other;
+    }
+    L.push(l);
+  }
+  return L.join('\n');
+},
+
+/* ---------- FUNCTIONAL STATUS ---------- */
+func({V,has,VN}){
+  const L=[];
+  const balHas=['sitstat','sitdyn','standstat','standdyn'].some(has);
+  if(balHas){
+    L.push('Balance(static/dynamic) ');
+    if(has('sitstat')||has('sitdyn'))
+      L.push('-Sitting balance : '+(has('sitstat')?V('sitstat'):'')+'/'+(has('sitdyn')?V('sitdyn'):'')+' ');
+    if(has('standstat')||has('standdyn'))
+      L.push('-Standing balance: '+(has('standstat')?V('standstat'):'')+'/'+(has('standdyn')?V('standdyn'):''));
+  }
+  const fnHas=['rollr','rolll','situp','standup','transfer','ambul','aid','slope'].some(has);
+  if(fnHas){
+    L.push('Function');
+    if(has('rollr')||has('rolll'))
+      L.push('-Rolling to right/left: '+(has('rollr')?V('rollr'):'')+'/'+(has('rolll')?V('rolll'):''));
+    if(has('situp')) L.push('-Sitting up: '+VN('situp'));
+    if(has('standup')) L.push('-Standing up: '+VN('standup'));
+    if(has('transfer')) L.push('-Transfer:  '+VN('transfer'));
+    if(has('ambul')) L.push('-Ambulation: '+VN('ambul'));
+    if(has('aid')) L.push('-行走輔具: '+VN('aid'));
+    if(has('slope')) L.push('-Slope/Stairs: '+VN('slope'));
+  }
+  if(has('fac')) L.push('Functional Ambulation Classification: '+V('fac'));
+  return L.join('\n');
+},
+
+/* ---------- BARTHEL ---------- */
+barthel({V,has}){
+  const L=[];
+  let head='';
+  if(has('btotal')) head=' '+V('btotal')+'/100';
+  const denom={feed:10,trans:15,groom:5,toilet:10,bath:5,walk:15,stair:10,dress:10,bowel:10,bladder:10};
+  const label={feed:'Feeding',trans:'Transfer',groom:'Grooming',toilet:'Toilet',bath:'Bathing',
+               walk:'Walking',stair:'Stair',dress:'Dressing',bowel:'Bowel',bladder:'Bladder'};
+  // demo row1 has an extra space before Toilet: "Grooming: 0/5,  Toilet"
+  const r1parts=[];
+  ['feed','trans','groom','toilet','bath'].forEach(k=>{ if(has(k)) r1parts.push(label[k]+': '+V(k)+'/'+denom[k]); });
+  let row1=r1parts.join(', ').replace('Grooming: '+(has('groom')?V('groom'):'')+'/5, Toilet','Grooming: '+(has('groom')?V('groom'):'')+'/5,  Toilet');
+  const r2parts=[];
+  ['walk','stair','dress','bowel','bladder'].forEach(k=>{ if(has(k)) r2parts.push(label[k]+': '+V(k)+'/'+denom[k]); });
+  if(row1) L.push(row1);
+  if(r2parts.length) L.push(r2parts.join(', '));
+  return '\x00'+head+ (L.length? '\n'+L.join('\n') : '');
+},
+
+/* ---------- mRS ---------- */
+mrs({V,has}){
+  if(!has('mrs')) return '';
+  return '\x01'+'Modified Rankin Scale(mRS): '+V('mrs');   // \x01 = no [Header] at all
+}
+
+};
+
+const OUT_HEADERS = {
+  neuro: 'Neurological examinations',
+  coord: 'Coordination & Balance'
+};
+// sections whose [Header] line has a trailing space in the demo
+const HDR_TRAIL = { speech:true, func:true };
+
+/* ---------- generate plain text ---------- */
+function fieldLine(f, v, note){
+  if(v===undefined || v===null) return null;
+  const pre=f.pre||"", suf=f.suf||"";
+  const tail = note? ' '+note : '';
+  if(f.type==='pick') return pre+v+suf+tail;
+  if(f.type==='multi') return pre+ v.join(f.sep||", ") +suf+tail;
+  if(f.type==='text'){ if(v==="")return null; return pre+v+suf; }
+  if(f.type==='pair'){ const a=v.a||"", b=v.b||""; if(!a&&!b)return null; return pre+a+(f.join||"/")+b+suf; }
+  return null;
+}
+
+function generate(){
+  const blocks=[];
+  MODEL.forEach(sec=>{
+    const st=state[sec.id];
+    if(st.excluded) return;   // section X'd out -> omit entirely (no header)
+    st.fother = st.fother || {};
+    // an "other" override (non-empty) fully REPLACES the field's selected value
+    const ov = k => { const o=st.fother[k]; return (o!==undefined && o!==null && o!=='')? o : undefined; };
+    // accessor helpers for formatters
+    const V = k => { const o=ov(k); return o!==undefined? o : st.fields[k]; };   // value (string | array | {a,b} | undefined)
+    const N = k => ov(k)!==undefined? undefined : st.fnotes[k];                  // note suppressed when overridden
+    const has = k => { if(ov(k)!==undefined) return true; const v=st.fields[k]; return v!==undefined && v!==null && v!=='' && !(Array.isArray(v)&&v.length===0); };
+    // value + its note appended (space)
+    const VN = k => { const o=ov(k); if(o!==undefined) return o;
+                      if(!has(k)) return ''; let v=st.fields[k]; if(Array.isArray(v)) v=v.join(', ');
+                      else if(v && typeof v==='object') v=(v.a||'')+'/'+(v.b||''); const n=st.fnotes[k]; return v+(n?' '+n:''); };
+    // OR: selected value(+note) if filled, else the skeleton (all options) text
+    const OR = (k,skel) => has(k)? VN(k) : skel;
+
+    let body;
+    // section-level override: replace whole section (or, for scoped sections, pass to formatter)
+    const so = st.secover || {mode:null,text:''};
+    const soActive = !!so.mode;
+    const soLine = so.mode==='unable' ? ('unable to test due to '+(so.text||'').trim()) : (so.text||'').trim();
+    if(soActive && sec.secOverride && sec.secOverrideScope!=='last'){
+      // whole-section replacement
+      if(sec.id==='mmse'){
+        body='\x00 '+soLine;   // -> "[MMSE] unable to test due to XXX"
+      } else {
+        body=soLine;           // header on its own line, single body line
+      }
+    } else if(typeof SECT_FMT[sec.id]==='function'){
+      body = SECT_FMT[sec.id]({V,N,has,VN,OR,st,so});   // custom per-section formatter
+    } else {
+      body = genericBody(sec, st);                // fallback (unused once all fmts defined)
+    }
+    // append section free-note (the per-block 補充 box) if any
+    const bn=(st.notes||'').trim();
+    if(bn){ const extra=bn.split(/\n/).map(x=>x.trim()).filter(Boolean).join('\n'); body = body? body+'\n'+extra : extra; }
+
+    if(!body || (!body.replace(/[\x00\x01]/g,'').trim())) return;   // nothing filled -> skip whole block
+    // \x01 = emit body with NO [Header] line at all (e.g. mRS)
+    if(body.charAt(0)==='\x01'){ blocks.push(body.slice(1)); return; }
+    const header = (typeof OUT_HEADERS!=='undefined' && OUT_HEADERS[sec.id]) ? OUT_HEADERS[sec.id] : (sec.outName || sec.name);
+    const trail = (typeof HDR_TRAIL!=='undefined' && HDR_TRAIL[sec.id]) ? ' ' : '';
+    if(body.charAt(0)==='\x00'){
+      body=body.slice(1);
+      const nl=body.indexOf('\n');
+      const headTail = nl<0 ? body : body.slice(0,nl);
+      const remainder = nl<0 ? '' : body.slice(nl+1);
+      blocks.push('['+header+']'+trail+headTail + (remainder? '\n'+remainder : ''));
+    } else {
+      blocks.push('['+header+']'+trail+'\n'+body);
+    }
+  });
+  const title='身體診察(Physical Examination)';
+  return blocks.length? title+'\n'+blocks.join('\n\n')+'\n' : '';
+}
+
+// generic fallback (kept for any section without a custom fmt)
+function genericBody(sec, st){
+  const lines=[];
+  const groupBuf={};
+  sec.fields.forEach(f=>{
+    if(f.group){
+      if(!groupBuf[f.group]){ groupBuf[f.group]={slot:lines.length, pre:(f.groupPre||''), parts:[]}; lines.push(null); }
+      if(f.groupPre) groupBuf[f.group].pre=f.groupPre;
+      const v=st.fields[f.key];
+      if(v!==undefined && v!==null && v!==''){ const gn=st.fnotes[f.key]; groupBuf[f.group].parts.push((f.groupLabel?f.groupLabel+' ':'')+v+(gn?' '+gn:'')); }
+      return;
+    }
+    const line=fieldLine(f, st.fields[f.key], st.fnotes[f.key]);
+    if(line!=null) lines.push(line);
+  });
+  Object.keys(groupBuf).forEach(g=>{ const gb=groupBuf[g]; lines[gb.slot]= gb.parts.length? (gb.pre+gb.parts.join(', ')):null; });
+  return lines.filter(l=>l!=null).join('\n');
+}
+
+/* ---------- auto totals (MMSE / LAST / Barthel) ---------- */
+function numParts(s){ // sum digits in a "a/b/c" style string
+  if(s==null) return null;
+  const nums=String(s).split(/[^0-9]+/).filter(x=>x!=='').map(Number);
+  if(!nums.length) return null;
+  return nums.reduce((a,b)=>a+b,0);
+}
+function sumKeys(secId, keys){
+  const st=state[secId]; let total=0, any=false;
+  const ov=st.fother||{};
+  keys.forEach(k=>{
+    let v = (ov[k]!==undefined && ov[k]!==null && ov[k]!=='')? ov[k] : st.fields[k];
+    if(v===undefined||v===null||v==='') return;
+    let n;
+    if(Array.isArray(v)){ n = v.length; }            // checklist: 1 point per selected item
+    else if(typeof v==='object'){ n=(numParts(v.a)||0)+(numParts(v.b)||0); }
+    else n=numParts(v);
+    if(n!=null){ total+=n; any=true; }
+  });
+  return any? total : null;
+}
+function setAuto(secId, key, val){
+  const st=state[secId];
+  const inp=(fieldInputs[secId]||{})[key];
+  // respect a manual override only if the user typed into it directly (dataset.manual)
+  if(inp && inp.dataset.manual==='1') return;
+  if(val==null){ st.fields[key]=undefined; if(inp) inp.value=''; return; }
+  st.fields[key]=String(val);
+  if(inp) inp.value=String(val);
+}
+function computeAutoSums(){
+  // MMSE total = sum of all 11 item picks (only if at least one item selected)
+  if(state.mmse){
+    const mkeys=['m_time','m_place','m_reg','m_recall','m_attn','m_naming','m_repeat','m_reading','m_writing','m_cmd','m_copy'];
+    const anyItem = mkeys.some(k=>{ const v=state.mmse.fields[k]; return v!==undefined&&v!==null&&v!==''; });
+    const t = anyItem? sumKeys('mmse', mkeys) : null;
+    setAuto('mmse','total', t);
+  }
+  // LAST scores are computed directly in the speech formatter from selected items.
+  // Barthel total
+  if(state.barthel){
+    const t=sumKeys('barthel', ['feed','trans','groom','toilet','bath','walk','stair','dress','bowel','bladder']);
+    setAuto('barthel','btotal', t);
+  }
+}
+
+function render(){
+  computeAutoSums();
+  const txt=generate();
+  OUT.textContent=txt;
+  EMPTY.style.display = txt? 'none':'block';
+}
+
+/* ---------- toolbar ---------- */
+document.getElementById('collapseAll').onclick=()=>document.querySelectorAll('.block').forEach(b=>b.classList.add('collapsed'));
+document.getElementById('expandAll').onclick=()=>document.querySelectorAll('.block').forEach(b=>b.classList.remove('collapsed'));
+
+document.getElementById('resetAll').onclick=()=>{
+  if(!confirm('清空所有已填內容並全部標為未評估？')) return;
+  location.reload();
+};
+
+/* ---------- copy ---------- */
+const copyBtn=document.getElementById('copyBtn');
+copyBtn.onclick=async()=>{
+  const txt=generate();
+  if(!txt){ copyBtn.textContent='沒有內容'; setTimeout(()=>copyBtn.textContent='複製',1200); return; }
+  try{ await navigator.clipboard.writeText(txt); }
+  catch(e){ const r=document.createRange(); r.selectNodeContents(OUT); const s=getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); s.removeAllRanges(); }
+  copyBtn.textContent='已複製 ✓'; copyBtn.classList.add('done');
+  setTimeout(()=>{copyBtn.textContent='複製'; copyBtn.classList.remove('done');},1400);
+};
+
+render();
+
+</script>
+</body>
+</html>
